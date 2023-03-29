@@ -1,0 +1,97 @@
+pr: none
+trigger: none
+
+schedules:
+  - cron: '*/30 * * * *'
+    displayName: Every 30 minutes build
+    branches:
+      include:
+        - main
+    always: true
+
+jobs:
+  - job: QaEnv
+    displayName: 'Run tests in the QA env'
+    pool:
+      name: Azure Pipelines
+      demands: npm
+      vmImage: 'ubuntu-latest'
+
+    steps:
+      - powershell: |
+          $BUILD_URL = "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
+          Write-Host "##vso[task.setvariable variable=BUILD_URL;]$BUILD_URL"
+        displayName: 'Set build url variable'
+
+      - task: Npm@1
+        displayName: 'npm install'
+        inputs:
+          verbose: false
+
+      - task: Npm@1
+        displayName: 'npm run regression'
+        condition: always()
+        inputs:
+          command: custom
+          verbose: false
+          workingDir: ./
+          customCommand: 'run regression'
+        env:
+          TCS_C_API_KEY: ${TCS_C_API_KEY}
+          TCS_E_API_KEY: ${TCS_E_API_KEY}
+          COLLECTION_UID: ${COLLECTION_UID}
+          QA_ENV_UID: ${QA_ENV_UID}
+          BUILD_URL: ${BUILD_URL}
+          ENV: 'QA'
+          SLACK_QA_URL: ${SLACK_QA_URL}
+          SLACK_CHANNEL: '#tcs-api-tests-qa-env'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish artifacts: drop'
+        condition: always()
+        inputs:
+          pathToPublish: '$(system.defaultworkingdirectory)/report'
+          artifactName: drop
+
+  - job: StageEnv
+    displayName: 'Run tests in the STAGE env'
+    pool:
+      name: Azure Pipelines
+      demands: npm
+      vmImage: 'ubuntu-latest'
+
+    steps:
+      - powershell: |
+          $BUILD_URL = "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
+          Write-Host "##vso[task.setvariable variable=BUILD_URL;]$BUILD_URL"
+        displayName: 'Set build url variable'
+
+      - task: Npm@1
+        displayName: 'npm install'
+        inputs:
+          verbose: false
+
+      - task: Npm@1
+        displayName: 'npm run regression'
+        condition: always()
+        inputs:
+          command: custom
+          verbose: false
+          workingDir: ./
+          customCommand: 'run regression'
+        env:
+          TCS_C_API_KEY: ${TCS_C_API_KEY}
+          TCS_E_API_KEY: ${TCS_E_API_KEY}
+          COLLECTION_UID: ${COLLECTION_UID}
+          QA_ENV_UID: ${QA_ENV_UID}
+          BUILD_URL: ${BUILD_URL}
+          ENV: 'STG'
+          SLACK_STAGE_URL: ${SLACK_STAGE_URL}
+          SLACK_CHANNEL: '#tcs-api-tests-stage-env'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish artifacts: drop'
+        condition: always()
+        inputs:
+          pathToPublish: '$(system.defaultworkingdirectory)/report'
+          artifactName: drop
